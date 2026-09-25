@@ -288,7 +288,7 @@ const toneCls = {
   primary: "bg-primary-soft text-primary",
 } as const;
 
-function Kpi({ icon, label, value, sub, tone, to }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone: keyof typeof toneCls; to?: "/owed" | "/subscriptions" }) {
+function Kpi({ icon, label, value, sub, tone, to }: { icon: React.ReactNode; label: string; value: string; sub?: string | undefined; tone: keyof typeof toneCls; to?: "/owed" | "/subscriptions" }) {
   const body = (
     <Card className="h-full">
       <div className={`flex h-8 w-8 items-center justify-center rounded-full ${toneCls[tone]}`}>{icon}</div>
