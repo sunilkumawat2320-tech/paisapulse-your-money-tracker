@@ -9,122 +9,174 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as BudgetsRouteImport } from './routes/budgets'
-import { Route as CaptureRouteImport } from './routes/capture'
-import { Route as OwedRouteImport } from './routes/owed'
-import { Route as SubscriptionsRouteImport } from './routes/subscriptions'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedBudgetsRouteImport } from './routes/_authenticated/budgets'
+import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedOwedRouteImport } from './routes/_authenticated/owed'
+import { Route as AuthenticatedSubscriptionsRouteImport } from './routes/_authenticated/subscriptions'
 
-const IndexRoute = IndexRouteImport.update({
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const BudgetsRoute = BudgetsRouteImport.update({
+const AuthenticatedBudgetsRoute = AuthenticatedBudgetsRouteImport.update({
   id: '/budgets',
   path: '/budgets',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const CaptureRoute = CaptureRouteImport.update({
+const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
   id: '/capture',
   path: '/capture',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const OwedRoute = OwedRouteImport.update({
+const AuthenticatedOwedRoute = AuthenticatedOwedRouteImport.update({
   id: '/owed',
   path: '/owed',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const SubscriptionsRoute = SubscriptionsRouteImport.update({
-  id: '/subscriptions',
-  path: '/subscriptions',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const AuthenticatedSubscriptionsRoute =
+  AuthenticatedSubscriptionsRouteImport.update({
+    id: '/subscriptions',
+    path: '/subscriptions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/budgets': typeof BudgetsRoute
-  '/capture': typeof CaptureRoute
-  '/owed': typeof OwedRoute
-  '/subscriptions': typeof SubscriptionsRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/auth': typeof AuthRoute
+  '/budgets': typeof AuthenticatedBudgetsRoute
+  '/capture': typeof AuthenticatedCaptureRoute
+  '/owed': typeof AuthenticatedOwedRoute
+  '/subscriptions': typeof AuthenticatedSubscriptionsRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/budgets': typeof BudgetsRoute
-  '/capture': typeof CaptureRoute
-  '/owed': typeof OwedRoute
-  '/subscriptions': typeof SubscriptionsRoute
+  '/auth': typeof AuthRoute
+  '/budgets': typeof AuthenticatedBudgetsRoute
+  '/capture': typeof AuthenticatedCaptureRoute
+  '/owed': typeof AuthenticatedOwedRoute
+  '/subscriptions': typeof AuthenticatedSubscriptionsRoute
+  '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/budgets': typeof BudgetsRoute
-  '/capture': typeof CaptureRoute
-  '/owed': typeof OwedRoute
-  '/subscriptions': typeof SubscriptionsRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/budgets': typeof AuthenticatedBudgetsRoute
+  '/_authenticated/capture': typeof AuthenticatedCaptureRoute
+  '/_authenticated/owed': typeof AuthenticatedOwedRoute
+  '/_authenticated/subscriptions': typeof AuthenticatedSubscriptionsRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/budgets' | '/capture' | '/owed' | '/subscriptions'
+  fullPaths:
+    '/' | '/auth' | '/budgets' | '/capture' | '/owed' | '/subscriptions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/budgets' | '/capture' | '/owed' | '/subscriptions'
-  id: '__root__' | '/' | '/budgets' | '/capture' | '/owed' | '/subscriptions'
+  to: '/auth' | '/budgets' | '/capture' | '/owed' | '/subscriptions' | '/'
+  id:
+    | '__root__'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/budgets'
+    | '/_authenticated/capture'
+    | '/_authenticated/owed'
+    | '/_authenticated/subscriptions'
+    | '/_authenticated/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  BudgetsRoute: typeof BudgetsRoute
-  CaptureRoute: typeof CaptureRoute
-  OwedRoute: typeof OwedRoute
-  SubscriptionsRoute: typeof SubscriptionsRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/budgets': {
-      id: '/budgets'
+    '/_authenticated/budgets': {
+      id: '/_authenticated/budgets'
       path: '/budgets'
       fullPath: '/budgets'
-      preLoaderRoute: typeof BudgetsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedBudgetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/capture': {
-      id: '/capture'
+    '/_authenticated/capture': {
+      id: '/_authenticated/capture'
       path: '/capture'
       fullPath: '/capture'
-      preLoaderRoute: typeof CaptureRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/owed': {
-      id: '/owed'
+    '/_authenticated/owed': {
+      id: '/_authenticated/owed'
       path: '/owed'
       fullPath: '/owed'
-      preLoaderRoute: typeof OwedRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedOwedRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/subscriptions': {
-      id: '/subscriptions'
+    '/_authenticated/subscriptions': {
+      id: '/_authenticated/subscriptions'
       path: '/subscriptions'
       fullPath: '/subscriptions'
-      preLoaderRoute: typeof SubscriptionsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedSubscriptionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedBudgetsRoute: typeof AuthenticatedBudgetsRoute
+  AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
+  AuthenticatedOwedRoute: typeof AuthenticatedOwedRoute
+  AuthenticatedSubscriptionsRoute: typeof AuthenticatedSubscriptionsRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedBudgetsRoute: AuthenticatedBudgetsRoute,
+  AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
+  AuthenticatedOwedRoute: AuthenticatedOwedRoute,
+  AuthenticatedSubscriptionsRoute: AuthenticatedSubscriptionsRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  BudgetsRoute: BudgetsRoute,
-  CaptureRoute: CaptureRoute,
-  OwedRoute: OwedRoute,
-  SubscriptionsRoute: SubscriptionsRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

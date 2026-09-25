@@ -4,7 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { Card, PageShell } from "@/components/PageShell";
 import { formatINR } from "@/lib/format";
 
-export const Route = createFileRoute("/subscriptions")({
+export const Route = createFileRoute("/_authenticated/subscriptions")({
   head: () => ({
     meta: [
       { title: "Subscriptions — PaisaPulse" },
