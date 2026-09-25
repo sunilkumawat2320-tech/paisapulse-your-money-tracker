@@ -66,7 +66,7 @@ export function OnboardingWizard({
     });
     if (pErr) {
       setSaving(false);
-      return toast.error(pErr.message);
+      toast.error(pErr.message); return;
     }
     const rows = Object.entries(budgets)
       .map(([category, v]) => ({ user_id: userId, category, monthly_limit: Number(v) || 0 }))
@@ -75,7 +75,7 @@ export function OnboardingWizard({
       const { error } = await supabase.from("budgets").upsert(rows, { onConflict: "user_id,category" });
       if (error) {
         setSaving(false);
-        return toast.error(error.message);
+        toast.error(error.message); return;
       }
     }
     setSaving(false);
