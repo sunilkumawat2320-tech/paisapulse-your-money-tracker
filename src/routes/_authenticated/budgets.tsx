@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Card, PageShell } from "@/components/PageShell";
 import { formatINR } from "@/lib/format";
 
-export const Route = createFileRoute("/budgets")({
+export const Route = createFileRoute("/_authenticated/budgets")({
   head: () => ({
     meta: [
       { title: "Budgets — PaisaPulse" },

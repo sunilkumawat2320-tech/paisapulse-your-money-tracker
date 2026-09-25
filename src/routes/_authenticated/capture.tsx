@@ -3,7 +3,7 @@ import { Camera, Keyboard, Mic, ScanLine } from "lucide-react";
 
 import { Card, PageShell } from "@/components/PageShell";
 
-export const Route = createFileRoute("/capture")({
+export const Route = createFileRoute("/_authenticated/capture")({
   head: () => ({
     meta: [
       { title: "Capture an expense — PaisaPulse" },
