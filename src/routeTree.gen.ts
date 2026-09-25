@@ -10,33 +10,73 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BudgetsRouteImport } from './routes/budgets'
+import { Route as CaptureRouteImport } from './routes/capture'
+import { Route as OwedRouteImport } from './routes/owed'
+import { Route as SubscriptionsRouteImport } from './routes/subscriptions'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BudgetsRoute = BudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CaptureRoute = CaptureRouteImport.update({
+  id: '/capture',
+  path: '/capture',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwedRoute = OwedRouteImport.update({
+  id: '/owed',
+  path: '/owed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionsRoute = SubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/budgets': typeof BudgetsRoute
+  '/capture': typeof CaptureRoute
+  '/owed': typeof OwedRoute
+  '/subscriptions': typeof SubscriptionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/budgets': typeof BudgetsRoute
+  '/capture': typeof CaptureRoute
+  '/owed': typeof OwedRoute
+  '/subscriptions': typeof SubscriptionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/budgets': typeof BudgetsRoute
+  '/capture': typeof CaptureRoute
+  '/owed': typeof OwedRoute
+  '/subscriptions': typeof SubscriptionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/budgets' | '/capture' | '/owed' | '/subscriptions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/budgets' | '/capture' | '/owed' | '/subscriptions'
+  id: '__root__' | '/' | '/budgets' | '/capture' | '/owed' | '/subscriptions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BudgetsRoute: typeof BudgetsRoute
+  CaptureRoute: typeof CaptureRoute
+  OwedRoute: typeof OwedRoute
+  SubscriptionsRoute: typeof SubscriptionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +88,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/budgets': {
+      id: '/budgets'
+      path: '/budgets'
+      fullPath: '/budgets'
+      preLoaderRoute: typeof BudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/capture': {
+      id: '/capture'
+      path: '/capture'
+      fullPath: '/capture'
+      preLoaderRoute: typeof CaptureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owed': {
+      id: '/owed'
+      path: '/owed'
+      fullPath: '/owed'
+      preLoaderRoute: typeof OwedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscriptions': {
+      id: '/subscriptions'
+      path: '/subscriptions'
+      fullPath: '/subscriptions'
+      preLoaderRoute: typeof SubscriptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BudgetsRoute: BudgetsRoute,
+  CaptureRoute: CaptureRoute,
+  OwedRoute: OwedRoute,
+  SubscriptionsRoute: SubscriptionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
