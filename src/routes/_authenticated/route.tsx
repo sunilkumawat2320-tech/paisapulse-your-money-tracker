@@ -39,7 +39,7 @@ function AuthenticatedLayout() {
           userId={user.id}
           defaults={{
             full_name:
-              profile.data?.full_name ?? (user.user_metadata?.full_name as string | undefined) ?? "",
+              profile.data?.full_name ?? (user.user_metadata?.['full_name'] as string | undefined) ?? "",
             whatsapp_number: profile.data?.whatsapp_number ?? user.phone ?? "",
           }}
           onDone={() => profile.refetch()}

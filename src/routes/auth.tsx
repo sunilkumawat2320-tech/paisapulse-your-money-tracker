@@ -41,21 +41,21 @@ function AuthScreen() {
   const fullPhone = `+91${phone}`;
 
   async function sendOtp() {
-    if (!/^[6-9]\d{9}$/.test(phone)) return toast.error("Enter a valid 10-digit mobile number");
+    if (!/^[6-9]\d{9}$/.test(phone)) { toast.error("Enter a valid 10-digit mobile number"); return; }
     setBusy(true);
     const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setSent(true);
     toast.success("OTP sent via SMS");
   }
 
   async function verifyOtp() {
-    if (otp.length !== 6) return toast.error("Enter the 6-digit OTP");
+    if (otp.length !== 6) { toast.error("Enter the 6-digit OTP"); return; }
     setBusy(true);
     const { error } = await supabase.auth.verifyOtp({ phone: fullPhone, token: otp, type: "sms" });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
   }
 
   async function google() {

@@ -38,7 +38,7 @@ export function OnboardingWizard({
   const incomeNum = Number(income) || 0;
 
   function goToBudgets() {
-    if (!incomeNum || incomeNum <= 0) return toast.error("Enter your monthly income");
+    if (!incomeNum || incomeNum <= 0) { toast.error("Enter your monthly income"); return; }
     const next: Record<string, string> = {};
     DEFAULT_BUDGETS.forEach((b) => {
       next[b.category] = budgets[b.category] ?? String(Math.round((incomeNum * b.share) / 100) * 100);
@@ -48,9 +48,9 @@ export function OnboardingWizard({
   }
 
   function nextFromProfile() {
-    if (fullName.trim().length < 2) return toast.error("Enter your full name");
-    if (!/^[6-9]\d{9}$/.test(whatsapp)) return toast.error("Enter a valid 10-digit WhatsApp number");
-    if (!UPI_RE.test(upi.trim())) return toast.error("Enter a valid UPI ID, e.g. name@okhdfc");
+    if (fullName.trim().length < 2) { toast.error("Enter your full name"); return; }
+    if (!/^[6-9]\d{9}$/.test(whatsapp)) { toast.error("Enter a valid 10-digit WhatsApp number"); return; }
+    if (!UPI_RE.test(upi.trim())) { toast.error("Enter a valid UPI ID, e.g. name@okhdfc"); return; }
     setStep(1);
   }
 
