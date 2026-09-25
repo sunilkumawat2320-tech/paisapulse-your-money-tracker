@@ -41,6 +41,60 @@ export type Database = {
         }
         Relationships: []
       }
+      insights: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      owed_items: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string | null
+          id: string
+          person_name: string
+          reason: string | null
+          settled: boolean
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          person_name: string
+          reason?: string | null
+          settled?: boolean
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          person_name?: string
+          reason?: string | null
+          settled?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -71,6 +125,72 @@ export type Database = {
           updated_at?: string
           upi_id?: string | null
           whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          active: boolean
+          amount: number
+          billing_cycle: string
+          created_at: string
+          id: string
+          name: string
+          next_renewal: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          amount?: number
+          billing_cycle?: string
+          created_at?: string
+          id?: string
+          name: string
+          next_renewal: string
+          user_id?: string
+        }
+        Update: {
+          active?: boolean
+          amount?: number
+          billing_cycle?: string
+          created_at?: string
+          id?: string
+          name?: string
+          next_renewal?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          id: string
+          note: string | null
+          occurred_at: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          type?: string
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          type?: string
+          user_id?: string
         }
         Relationships: []
       }
