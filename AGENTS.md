@@ -11,4 +11,4 @@
 
 ## Project architecture
 
-- Expose the managed backend URL and publishable key to browser builds through Vite `define`, because production publishing does not reliably map the server-prefixed values into client bundles.
+- Expose the managed backend URL and publishable key to browser builds through Vite `define`, with project-specific public fallbacks, because the published build may omit both VITE-prefixed and server-prefixed values.
