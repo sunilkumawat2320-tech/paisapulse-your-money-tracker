@@ -8,6 +8,13 @@
       "when": 1794208481920,
       "tag": "0000_extend_transactions_for_capture",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794208619795,
+      "tag": "0001_add_transaction_source_fingerprint_unique",
+      "breakpoints": true
     }
   ]
 }
