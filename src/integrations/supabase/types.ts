@@ -167,8 +167,14 @@ export type Database = {
           category: string
           created_at: string
           id: string
+          merchant: string | null
           note: string | null
           occurred_at: string
+          payment_mode: string | null
+          raw_text: string | null
+          source: string
+          source_fingerprint: string | null
+          statement_import_id: string | null
           type: string
           user_id: string
         }
@@ -177,8 +183,14 @@ export type Database = {
           category?: string
           created_at?: string
           id?: string
+          merchant?: string | null
           note?: string | null
           occurred_at?: string
+          payment_mode?: string | null
+          raw_text?: string | null
+          source?: string
+          source_fingerprint?: string | null
+          statement_import_id?: string | null
           type?: string
           user_id?: string
         }
@@ -187,8 +199,14 @@ export type Database = {
           category?: string
           created_at?: string
           id?: string
+          merchant?: string | null
           note?: string | null
           occurred_at?: string
+          payment_mode?: string | null
+          raw_text?: string | null
+          source?: string
+          source_fingerprint?: string | null
+          statement_import_id?: string | null
           type?: string
           user_id?: string
         }
