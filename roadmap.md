@@ -1,0 +1,2 @@
+- [ ] Explain why the Google AI Studio key prefix may differ from the example and collect it securely.
+- [ ] Complete the Capture screen and transaction processing pipeline after the API credential is available.
