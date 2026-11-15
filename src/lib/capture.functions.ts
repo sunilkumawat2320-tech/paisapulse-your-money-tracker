@@ -125,13 +125,14 @@ export const confirmCaptureEntries = createServerFn({ method: "POST" })
       user_id: context.userId,
       amount: entry.amount,
       category: entry.category,
-      merchant: entry.merchant || null,
+      type: (entry.type as string) || "expense",
       occurred_at: entry.occurredAt,
+      merchant: entry.merchant || null,
       payment_mode: entry.paymentMode || null,
-      note: entry.note || null,
-      raw_text: data.rawText || null,
       source: data.source,
-      source_fingerprint: fingerprints[index],
+      raw_text: data.rawText || null,
+      source_fingerprint: fingerprints[index] ?? null,
+      note: entry.note || null,
     }));
     const { data: saved, error } = await context.supabase
       .from("transactions")
@@ -158,14 +159,15 @@ export const importCaptureStatement = createServerFn({ method: "POST" })
       user_id: context.userId,
       amount: entry.amount,
       category: entry.category,
-      merchant: entry.merchant || null,
+      type: "expense",
       occurred_at: entry.occurredAt,
+      merchant: entry.merchant || null,
       payment_mode: entry.paymentMode || null,
-      note: entry.note || null,
-      raw_text: `${data.fileName}\n${entry.note}`.slice(0, 8000),
       source: "statement",
-      source_fingerprint: fingerprints[index],
+      raw_text: `${data.fileName}\n${entry.note}`.slice(0, 8000),
+      source_fingerprint: fingerprints[index] ?? null,
       statement_import_id: importId,
+      note: entry.note || null,
     }));
     const { data: importedRows, error } = await context.supabase
       .from("transactions")
@@ -180,7 +182,10 @@ export const undoCaptureStatement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ importId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("transactions").delete().eq("statement_import_id", data.importId);
+    const { error } = await context.supabase
+      .from("transactions")
+      .delete()
+      .eq("statement_import_id", data.importId);
     if (error) throw new Error(error.message);
     return { undone: true };
   });

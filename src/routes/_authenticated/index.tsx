@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -12,6 +12,9 @@ import {
   Percent,
   Receipt,
   Sparkles,
+  User,
+  FileSpreadsheet,
+  RotateCw,
 } from "lucide-react";
 import {
   Cell,
@@ -24,12 +27,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { toast } from "sonner";
 
 import { Card, EmptyState, PageShell } from "@/components/PageShell";
 import { Skeleton } from "@/components/Skeleton";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { formatINR, todayIST } from "@/lib/format";
+import { generateAndSaveInsight } from "@/lib/insights-engine";
+import { TransactionLedgerModal } from "@/components/TransactionLedgerModal";
+import { ProfileSettingsDialog } from "@/components/ProfileSettingsDialog";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -80,7 +88,8 @@ function lastSixMonths() {
 
 async function fetchDashboard() {
   const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user!.id;
+  if (!auth.user) throw new Error("Not authenticated");
+  const uid = auth.user.id;
   const since = new Date();
   since.setMonth(since.getMonth() - 6);
   since.setDate(1);
@@ -88,15 +97,16 @@ async function fetchDashboard() {
   const today = new Date().toISOString().slice(0, 10);
 
   const [profile, tx, budgets, owed, subs, insight] = await Promise.all([
-    supabase.from("profiles").select("monthly_income,full_name").eq("id", uid).maybeSingle(),
+    supabase.from("profiles").select("monthly_income,full_name,upi_id,whatsapp_number").eq("id", uid).maybeSingle(),
     supabase.from("transactions").select("amount,type,category,occurred_at").gte("occurred_at", since.toISOString()),
     supabase.from("budgets").select("category,monthly_limit"),
     supabase.from("owed_items").select("amount").eq("settled", false),
     supabase.from("subscriptions").select("name,amount,next_renewal").eq("active", true).gte("next_renewal", today).lte("next_renewal", in7),
-    supabase.from("insights").select("message,created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("insights").select("title,message,type,created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   for (const r of [profile, tx, budgets, owed, subs, insight]) if (r.error) throw r.error;
   return {
+    userId: uid,
     profile: profile.data,
     tx: tx.data ?? [],
     budgets: budgets.data ?? [],
@@ -107,13 +117,18 @@ async function fetchDashboard() {
 }
 
 function HomeScreen() {
+  const queryClient = useQueryClient();
   const q = useQuery({ queryKey: ["dashboard"], queryFn: fetchDashboard });
   const { pull, refreshing, ready } = usePullToRefresh(() => q.refetch());
+
   const [activeSlice, setActiveSlice] = useState<number | null>(null);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [generatingInsight, setGeneratingInsight] = useState(false);
 
   const d = useMemo(() => {
     if (!q.data) return null;
-    const { tx, budgets, owed, renewals, profile, insight } = q.data;
+    const { userId, tx, budgets, owed, renewals, profile, insight } = q.data;
     const months = lastSixMonths();
     const cur = months[5]!.key;
     const prev = months[4]!.key;
@@ -144,6 +159,7 @@ function HomeScreen() {
       amount: expenses.filter((t) => monthKey(t.occurred_at) === m.key).reduce((s, t) => s + Number(t.amount), 0),
     }));
 
+    let insightTitle = insight?.title || "Financial Insight";
     let summary = insight?.message ?? null;
     if (!summary && expense > 0) {
       if (lastMonthSpend > 0) {
@@ -155,13 +171,46 @@ function HomeScreen() {
     }
 
     return {
-      income, expense, savingsRate, budgetUsed, totalBudget,
+      userId,
+      income,
+      expense,
+      savingsRate,
+      budgetUsed,
+      totalBudget,
       owedTotal: owed.reduce((s, o) => s + Number(o.amount), 0),
-      renewals, categories, trend, alerts, summary,
+      renewals,
+      categories,
+      trend,
+      alerts,
+      summary,
+      insightTitle,
       hasTx: tx.length > 0,
+      profile,
       firstName: profile?.full_name?.split(" ")[0],
     };
   }, [q.data]);
+
+  async function handleRefreshInsight() {
+    if (!d) return;
+    setGeneratingInsight(true);
+    try {
+      const res = await generateAndSaveInsight(d.userId, {
+        income: d.income,
+        expense: d.expense,
+        savingsRate: d.savingsRate,
+        categories: d.categories,
+        alerts: d.alerts,
+        renewals: d.renewals,
+        owedTotal: d.owedTotal,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Fresh financial insight generated & saved!");
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Failed to generate insight");
+    } finally {
+      setGeneratingInsight(false);
+    }
+  }
 
   const catTotal = d?.categories.reduce((s, c) => s + c.value, 0) ?? 0;
   const active = activeSlice != null ? d?.categories[activeSlice] : null;
@@ -181,14 +230,46 @@ function HomeScreen() {
         )
       ) : (
         <>
-          {d.summary && (
-            <Card className="bg-primary text-primary-foreground">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide opacity-80">
-                <Sparkles className="h-4 w-4" /> Insight
+          {/* User profile action strip */}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setProfileOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <User className="h-3.5 w-3.5 text-primary" />
+              <span>{d.profile?.full_name || "Profile & Settings"}</span>
+            </button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setLedgerOpen(true)}
+              className="h-8 gap-1.5 rounded-xl text-xs font-semibold"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+              Ledger & Export
+            </Button>
+          </div>
+
+          {/* AI Financial Insight Card */}
+          <Card className="bg-primary text-primary-foreground relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide opacity-90">
+                <Sparkles className="h-4 w-4" /> {d.insightTitle}
               </div>
-              <p className="mt-2 text-sm leading-relaxed">{d.summary}</p>
-            </Card>
-          )}
+              <button
+                type="button"
+                onClick={handleRefreshInsight}
+                disabled={generatingInsight}
+                className="inline-flex items-center gap-1 rounded-lg bg-primary-foreground/15 px-2 py-0.5 text-[11px] font-medium hover:bg-primary-foreground/25 transition-colors"
+                title="Generate fresh AI financial advice"
+              >
+                <RotateCw className={`h-3 w-3 ${generatingInsight ? "animate-spin" : ""}`} />
+                {generatingInsight ? "Thinking…" : "Get Advice"}
+              </button>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed">{d.summary || "Tap 'Get Advice' to analyze your monthly numbers."}</p>
+          </Card>
 
           {d.alerts.length > 0 && (
             <div className="space-y-2">
@@ -224,7 +305,16 @@ function HomeScreen() {
           ) : (
             <>
               <Card>
-                <h2 className="text-sm font-semibold text-muted-foreground">Where your money went</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-muted-foreground">Where your money went</h2>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerOpen(true)}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    View ledger
+                  </button>
+                </div>
                 {d.categories.length === 0 ? (
                   <p className="py-8 text-center text-sm text-muted-foreground">No spends this month yet.</p>
                 ) : (
@@ -276,6 +366,19 @@ function HomeScreen() {
             </>
           )}
         </>
+      )}
+
+      {/* Transaction Ledger & Excel Export Modal */}
+      <TransactionLedgerModal open={ledgerOpen} onOpenChange={setLedgerOpen} />
+
+      {/* Profile & Settings Dialog */}
+      {d?.userId && (
+        <ProfileSettingsDialog
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          userId={d.userId}
+          initialData={d.profile}
+        />
       )}
     </PageShell>
   );

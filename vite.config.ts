@@ -16,10 +16,10 @@ export default defineConfig({
   vite: {
     define: {
       "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
-        process.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'] || "https://mabwjzkavcqlffbchqow.supabase.co",
+        process.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'] || "https://jqqvgrgratcyczrdvdia.supabase.co",
       ),
       "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(
-        process.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || process.env['SUPABASE_PUBLISHABLE_KEY'] || "sb_publishable_0XJzRdKCflDmEdNAzu2aZw__MaOYhWF",
+        process.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || process.env['SUPABASE_PUBLISHABLE_KEY'] || "sb_publishable_op6mMHALqmlDjwyLvyG9-Q_iGnjB9Mw",
       ),
     },
     plugins: [

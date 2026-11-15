@@ -1,2 +1,13 @@
-- [ ] Explain why the Google AI Studio key prefix may differ from the example and collect it securely.
-- [ ] Complete the Capture screen and transaction processing pipeline after the API credential is available.
+- [x] Explain why the Google AI Studio key prefix may differ from the example and collect it securely.
+  - Added dedicated AI configuration modal in Capture screen explaining `AIzaSy...` AI Studio keys vs GCP project/express keys.
+  - Client-side secure storage in browser `localStorage` with live test connection check.
+- [x] Complete the Capture screen and transaction processing pipeline after the API credential is available.
+  - Migrated live Supabase `transactions` table with `merchant`, `payment_mode`, `source`, `raw_text`, `source_fingerprint`, and `statement_import_id`.
+  - Added standard unique index `transactions_user_source_fingerprint_unique_all` for duplicate prevention via upsert.
+  - Implemented 4-mode Capture UI: Quick Manual Entry, Smart Indian SMS/NLP Parser, Bill/Receipt Camera OCR scan, and Bank Statement line importer with 1-click batch undo.
+- [x] AI Financial Insights & Advisory Engine, Transaction Ledger with Excel Export, and User Settings.
+  - Migrated live Supabase `insights` table with `title` and `type` columns via MCP `apply_migration`.
+  - Implemented real-time `insights-engine.ts` synthesizing monthly income, expenses, category spending, budget alerts, and subscription commitments into actionable Rupee financial advice, persisting rows directly to `public.insights`.
+  - Built `TransactionLedgerModal.tsx` supporting full-text search across notes, merchants, and amounts, category/type filtering, and 1-click `.xlsx` spreadsheet download via `export-utils.ts` and `xlsx`.
+  - Built `ProfileSettingsDialog.tsx` enabling live edits to monthly take-home pay, UPI ID, WhatsApp number, and session sign-out with instant dashboard recalibration.
+  - Full TypeScript and production build verification (`tsc` and `vite build` passing with 0 errors).
