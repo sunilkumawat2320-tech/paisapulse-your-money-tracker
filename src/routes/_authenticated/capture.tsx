@@ -19,6 +19,9 @@ import {
   CreditCard,
   Building2,
   Smartphone,
+  Mic,
+  MicOff,
+  Volume2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -108,10 +111,65 @@ export function CaptureScreen() {
       .slice(0, 16);
   });
 
-  // Smart SMS / NLP state
+  // Smart SMS / NLP & Voice state
   const [rawTextInput, setRawTextInput] = useState("");
   const [parsedEntries, setParsedEntries] = useState<CaptureRecord[]>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceLang, setVoiceLang] = useState<"hi-IN" | "en-IN">("hi-IN");
+  const recognitionRef = useRef<any>(null);
+
+  function toggleVoiceRecording() {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.error("Web Speech Recognition is not supported on this browser. Try Chrome or Edge.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = voiceLang;
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        toast.info(`Listening in ${voiceLang === "hi-IN" ? "Hindi / Hinglish" : "English"}… Speak your expense.`);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join("");
+        setRawTextInput(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        setIsListening(false);
+        if (event.error !== "no-speech") {
+          toast.error(`Microphone error: ${event.error}`);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: unknown) {
+      setIsListening(false);
+      toast.error(`Could not start microphone: ${(err as Error).message}`);
+    }
+  }
 
   // Statement import state
   const [statementImportId, setStatementImportId] = useState<string | null>(null);
@@ -669,11 +727,66 @@ export function CaptureScreen() {
         <Card className="space-y-4">
           <div>
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-primary" /> Smart SMS & Natural Language
+              <Sparkles className="h-4 w-4 text-primary" /> Smart SMS, Voice & Natural Language
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Paste Indian bank SMS messages, UPI debit texts, or everyday spend descriptions.
+              Speak or paste Indian bank SMS messages, UPI debit texts, or everyday spend descriptions.
             </p>
+          </div>
+
+          {/* Voice Input Toolbar */}
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/30 p-2.5">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={toggleVoiceRecording}
+                className={`rounded-xl transition-all ${
+                  isListening
+                    ? "bg-danger text-white animate-pulse"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                }`}
+              >
+                {isListening ? (
+                  <>
+                    <MicOff className="mr-1.5 h-4 w-4" /> Stop Listening
+                  </>
+                ) : (
+                  <>
+                    <Mic className="mr-1.5 h-4 w-4" /> Speak Expense
+                  </>
+                )}
+              </Button>
+              {isListening && (
+                <span className="text-xs font-semibold text-danger animate-pulse flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-danger animate-ping" /> Listening…
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 text-[11px]">
+              <span className="text-muted-foreground hidden sm:inline">Voice:</span>
+              <button
+                type="button"
+                onClick={() => setVoiceLang("hi-IN")}
+                className={`rounded-md px-2 py-1 font-semibold transition-colors ${
+                  voiceLang === "hi-IN" ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground hover:bg-muted"
+                }`}
+                title="Hinglish / Hindi speech recognition"
+              >
+                🇮🇳 Hinglish
+              </button>
+              <button
+                type="button"
+                onClick={() => setVoiceLang("en-IN")}
+                className={`rounded-md px-2 py-1 font-semibold transition-colors ${
+                  voiceLang === "en-IN" ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground hover:bg-muted"
+                }`}
+                title="Indian English speech recognition"
+              >
+                🇬🇧 English
+              </button>
+            </div>
           </div>
 
           <textarea

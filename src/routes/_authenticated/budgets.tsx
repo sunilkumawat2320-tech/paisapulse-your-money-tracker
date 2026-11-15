@@ -1,7 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Trash2, Edit2, PiggyBank, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  PiggyBank,
+  AlertTriangle,
+  CheckCircle2,
+  TrendingDown,
+  LayoutGrid,
+  Table as TableIcon,
+  Download,
+  Flame,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, PageShell, EmptyState } from "@/components/PageShell";
@@ -18,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
+import { exportBudgetStatementToExcel, type BudgetStatementRow } from "@/lib/export-utils";
 
 export const Route = createFileRoute("/_authenticated/budgets")({
   head: () => ({
@@ -70,6 +83,7 @@ export function BudgetsScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [category, setCategory] = useState("");
   const [monthlyLimit, setMonthlyLimit] = useState("");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   const budgetsQuery = useQuery({
     queryKey: ["budgets"],
@@ -207,9 +221,75 @@ export function BudgetsScreen() {
     });
   }
 
+  const now = new Date();
+  const dayOfMonth = Math.max(1, now.getDate());
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysRemaining = Math.max(1, daysInMonth - dayOfMonth);
+  const endOfMonthFormatted = new Intl.DateTimeFormat("en-IN", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+
   const items = budgetsQuery.data?.budgets ?? [];
   const totalBudgeted = items.reduce((sum, b) => sum + Number(b.monthly_limit), 0);
   const totalSpent = items.reduce((sum, b) => sum + Number(b.spent), 0);
+  const totalVariance = totalBudgeted - totalSpent;
+
+  // Calculate detailed pace & forecasts for each category
+  const analyzedBudgets = items.map((b) => {
+    const limit = Number(b.monthly_limit);
+    const spent = Number(b.spent);
+    const ratio = limit > 0 ? spent / limit : 0;
+    const variance = limit - spent;
+    const dailyBurn = spent / dayOfMonth;
+    const projectedMonthEnd = Math.round(dailyBurn * daysInMonth);
+    const projectedOverspend = projectedMonthEnd - limit;
+    const isPaceOver = limit > 0 && projectedOverspend > 0;
+    const safeDailySpend = Math.max(0, Math.round(variance / daysRemaining));
+
+    return {
+      ...b,
+      limit,
+      spent,
+      ratio,
+      variance,
+      dailyBurn,
+      projectedMonthEnd,
+      projectedOverspend,
+      isPaceOver,
+      safeDailySpend,
+      statusInfo: status(ratio),
+    };
+  });
+
+  const overshootingCategories = analyzedBudgets.filter((b) => b.isPaceOver);
+
+  function handleExportExcel() {
+    try {
+      const rows: BudgetStatementRow[] = analyzedBudgets.map((b) => ({
+        category: b.category,
+        monthly_limit: b.limit,
+        spent: b.spent,
+        variance: b.variance,
+        percentUtilized: Math.round(b.ratio * 100),
+        status: b.statusInfo.label,
+        safeDailySpend: b.safeDailySpend,
+      }));
+
+      exportBudgetStatementToExcel(
+        rows,
+        {
+          totalBudget: totalBudgeted,
+          totalSpent: totalSpent,
+          totalVariance: totalVariance,
+        },
+        getMonthNameAndYear()
+      );
+      toast.success("Comparative statement exported to Excel");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to export Excel");
+    }
+  }
 
   return (
     <PageShell title="Budgets" subtitle={getMonthNameAndYear()}>
@@ -218,9 +298,39 @@ export function BudgetsScreen() {
           <h2 className="text-base font-semibold text-foreground">Monthly Category Limits</h2>
           <p className="text-xs text-muted-foreground">Manage your spending limits in ₹</p>
         </div>
-        <Button onClick={openCreate} size="sm" className="gap-1.5 rounded-xl">
-          <Plus className="h-4 w-4" /> Add Budget
-        </Button>
+        <div className="flex items-center gap-2">
+          {items.length > 0 && (
+            <div className="flex items-center bg-muted/60 p-0.5 rounded-xl border border-border">
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  viewMode === "cards"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Cards view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  viewMode === "table"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Comparative Statement table"
+              >
+                <TableIcon className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          <Button onClick={openCreate} size="sm" className="gap-1.5 rounded-xl">
+            <Plus className="h-4 w-4" /> Add Budget
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -260,6 +370,48 @@ export function BudgetsScreen() {
         )}
       </Card>
 
+      {/* Dynamic Pace Forecast Banner */}
+      {overshootingCategories.length > 0 && (
+        <Card className="border-warning/40 bg-warning/5">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-warning/15 text-warning shrink-0 mt-0.5">
+              <Flame className="h-5 w-5" />
+            </div>
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-warning">Dynamic Pace Forecast Alert</p>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  Day {dayOfMonth} of {daysInMonth} ({daysRemaining}d left)
+                </span>
+              </div>
+              <p className="text-xs text-foreground/90">
+                At your current daily burn rate, you are on pace to overshoot{" "}
+                <span className="font-semibold">{overshootingCategories.length}</span> category{" "}
+                {overshootingCategories.length === 1 ? "budget" : "budgets"} by month-end ({endOfMonthFormatted}):
+              </p>
+              <div className="mt-2 space-y-1.5 pt-1">
+                {overshootingCategories.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 p-2 rounded-lg bg-background/80 border border-warning/20 text-xs"
+                  >
+                    <span className="font-medium text-foreground">
+                      {c.category}:{" "}
+                      <span className="text-danger font-semibold">
+                        overspend ~{formatINR(c.projectedOverspend)}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground text-[11px]">
+                      Safe daily cap: <strong className="text-foreground">{formatINR(c.safeDailySpend)}/day</strong>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {budgetsQuery.isPending ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full rounded-2xl" />
@@ -272,15 +424,143 @@ export function BudgetsScreen() {
           title="No budgets set yet"
           description="Create budgets for your major spending categories to keep your monthly finances on track."
         />
-      ) : (
-        <div className="space-y-3">
-          {items.map((budget) => {
-            const limit = Number(budget.monthly_limit);
-            const spent = Number(budget.spent);
-            const ratio = limit > 0 ? spent / limit : 0;
-            const s = status(ratio);
-            const remaining = limit - spent;
+      ) : viewMode === "table" ? (
+        /* Comparative Statement Table View */
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Budget vs. Actual Comparative Statement
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Detailed variance statement for {getMonthNameAndYear()}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExportExcel}
+              className="gap-1.5 rounded-xl h-8 text-xs"
+            >
+              <Download className="h-3.5 w-3.5" /> Export Excel
+            </Button>
+          </div>
 
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/40 text-muted-foreground uppercase text-[10px] font-semibold">
+                <tr>
+                  <th className="px-4 py-2.5">Category</th>
+                  <th className="px-3 py-2.5 text-right">Budget (₹)</th>
+                  <th className="px-3 py-2.5 text-right">Actual (₹)</th>
+                  <th className="px-3 py-2.5 text-right">Variance (₹)</th>
+                  <th className="px-3 py-2.5 text-right">Safe Daily</th>
+                  <th className="px-3 py-2.5 text-center">Status</th>
+                  <th className="px-3 py-2.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {analyzedBudgets.map((budget) => {
+                  return (
+                    <tr key={budget.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-foreground">
+                        {budget.category}
+                      </td>
+                      <td className="px-3 py-3 text-right font-medium text-foreground">
+                        {formatINR(budget.limit)}
+                      </td>
+                      <td className="px-3 py-3 text-right font-medium text-foreground">
+                        {formatINR(budget.spent)}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <span
+                          className={`font-semibold ${
+                            budget.variance >= 0 ? "text-success" : "text-danger"
+                          }`}
+                        >
+                          {budget.variance >= 0
+                            ? `+${formatINR(budget.variance)}`
+                            : `-${formatINR(Math.abs(budget.variance))}`}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right text-muted-foreground">
+                        {formatINR(budget.safeDailySpend)}/d
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span
+                          className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${budget.statusInfo.chip}`}
+                        >
+                          {budget.statusInfo.label} · {Math.round(budget.ratio * 100)}%
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(budget)}
+                            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label="Edit budget"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteMutation.mutate(budget.id)}
+                            className="p-1 text-muted-foreground hover:text-danger transition-colors"
+                            aria-label="Delete budget"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="border-t-2 border-border bg-muted/40 font-semibold text-xs">
+                <tr>
+                  <td className="px-4 py-3 text-foreground uppercase tracking-wide">Total</td>
+                  <td className="px-3 py-3 text-right text-foreground">
+                    {formatINR(totalBudgeted)}
+                  </td>
+                  <td className="px-3 py-3 text-right text-foreground">
+                    {formatINR(totalSpent)}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    <span
+                      className={`font-bold ${
+                        totalVariance >= 0 ? "text-success" : "text-danger"
+                      }`}
+                    >
+                      {totalVariance >= 0
+                        ? `+${formatINR(totalVariance)}`
+                        : `-${formatINR(Math.abs(totalVariance))}`}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right text-muted-foreground">
+                    {formatINR(Math.max(0, Math.round(totalVariance / daysRemaining)))}/d
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        totalSpent > totalBudgeted
+                          ? "bg-danger-soft text-danger"
+                          : "bg-success-soft text-success"
+                      }`}
+                    >
+                      {totalSpent > totalBudgeted ? "Overspent" : "On track"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        /* Cards View */
+        <div className="space-y-3">
+          {analyzedBudgets.map((budget) => {
             return (
               <Card key={budget.id} className="relative group">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -289,14 +569,14 @@ export function BudgetsScreen() {
                       {budget.category}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatINR(spent)} of {formatINR(limit)}
+                      {formatINR(budget.spent)} of {formatINR(budget.limit)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${s.chip}`}
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${budget.statusInfo.chip}`}
                     >
-                      {s.label} · {Math.round(ratio * 100)}%
+                      {budget.statusInfo.label} · {Math.round(budget.ratio * 100)}%
                     </span>
                     <button
                       type="button"
@@ -319,15 +599,18 @@ export function BudgetsScreen() {
 
                 <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
                   <div
-                    className={`h-full rounded-full transition-all ${s.bar}`}
-                    style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+                    className={`h-full rounded-full transition-all ${budget.statusInfo.bar}`}
+                    style={{ width: `${Math.min(budget.ratio, 1) * 100}%` }}
                   />
                 </div>
 
-                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                   <span>
-                    {remaining >= 0 ? `${formatINR(remaining)} left` : `${formatINR(Math.abs(remaining))} over limit`}
+                    {budget.variance >= 0
+                      ? `${formatINR(budget.variance)} left`
+                      : `${formatINR(Math.abs(budget.variance))} over limit`}
                   </span>
+                  <span>Safe daily: {formatINR(budget.safeDailySpend)}/day</span>
                 </div>
               </Card>
             );

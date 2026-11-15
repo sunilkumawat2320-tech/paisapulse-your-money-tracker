@@ -77,6 +77,7 @@ export type Database = {
           person_name: string
           reason: string | null
           settled: boolean
+          type: string
           user_id: string
         }
         Insert: {
@@ -87,6 +88,7 @@ export type Database = {
           person_name: string
           reason?: string | null
           settled?: boolean
+          type?: string
           user_id?: string
         }
         Update: {
@@ -97,6 +99,7 @@ export type Database = {
           person_name?: string
           reason?: string | null
           settled?: boolean
+          type?: string
           user_id?: string
         }
         Relationships: []
@@ -141,6 +144,7 @@ export type Database = {
           billing_cycle: string
           created_at: string
           id: string
+          last_used_at: string | null
           name: string
           next_renewal: string
           user_id: string
@@ -151,6 +155,7 @@ export type Database = {
           billing_cycle?: string
           created_at?: string
           id?: string
+          last_used_at?: string | null
           name: string
           next_renewal: string
           user_id?: string
@@ -161,6 +166,7 @@ export type Database = {
           billing_cycle?: string
           created_at?: string
           id?: string
+          last_used_at?: string | null
           name?: string
           next_renewal?: string
           user_id?: string

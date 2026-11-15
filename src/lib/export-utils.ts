@@ -40,3 +40,66 @@ export function exportTransactionsToExcel(
   XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
   XLSX.writeFile(workbook, fileName);
 }
+
+export interface BudgetStatementRow {
+  category: string;
+  monthly_limit: number;
+  spent: number;
+  variance: number;
+  percentUtilized: number;
+  status: string;
+  safeDailySpend: number;
+}
+
+export function exportBudgetStatementToExcel(
+  items: BudgetStatementRow[],
+  totals: {
+    totalBudget: number;
+    totalSpent: number;
+    totalVariance: number;
+  },
+  monthName: string,
+  fileName = `PaisaPulse_Budget_Statement_${monthName.replace(/\s+/g, "_")}.xlsx`
+) {
+  if (!items.length) {
+    throw new Error("No budget data to export");
+  }
+
+  const rows = items.map((b) => ({
+    Category: b.category,
+    "Budget (INR)": b.monthly_limit,
+    "Actual Spent (INR)": b.spent,
+    "Variance (INR)": b.variance,
+    "% Utilized": `${b.percentUtilized}%`,
+    Status: b.status,
+    "Safe Daily Spend (INR)": b.safeDailySpend,
+  }));
+
+  // Append Totals row
+  rows.push({
+    Category: "TOTAL",
+    "Budget (INR)": totals.totalBudget,
+    "Actual Spent (INR)": totals.totalSpent,
+    "Variance (INR)": totals.totalVariance,
+    "% Utilized": totals.totalBudget > 0 ? `${Math.round((totals.totalSpent / totals.totalBudget) * 100)}%` : "0%",
+    Status: totals.totalSpent > totals.totalBudget ? "Overspent" : "On track",
+    "Safe Daily Spend (INR)": 0,
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+
+  worksheet["!cols"] = [
+    { wch: 22 }, // Category
+    { wch: 15 }, // Budget
+    { wch: 18 }, // Actual Spent
+    { wch: 16 }, // Variance
+    { wch: 14 }, // % Utilized
+    { wch: 14 }, // Status
+    { wch: 22 }, // Safe Daily Spend
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, `Budget ${monthName.slice(0, 20)}`);
+  XLSX.writeFile(workbook, fileName);
+}
+

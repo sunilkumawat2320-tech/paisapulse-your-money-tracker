@@ -15,6 +15,8 @@ import {
   User,
   FileSpreadsheet,
   RotateCw,
+  HelpCircle,
+  Trophy,
 } from "lucide-react";
 import {
   Cell,
@@ -38,6 +40,8 @@ import { formatINR, todayIST } from "@/lib/format";
 import { generateAndSaveInsight } from "@/lib/insights-engine";
 import { TransactionLedgerModal } from "@/components/TransactionLedgerModal";
 import { ProfileSettingsDialog } from "@/components/ProfileSettingsDialog";
+import { CanIAffordItModal } from "@/components/CanIAffordItModal";
+import { MoneyReportCardModal } from "@/components/MoneyReportCardModal";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -124,6 +128,8 @@ function HomeScreen() {
   const [activeSlice, setActiveSlice] = useState<number | null>(null);
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [affordOpen, setAffordOpen] = useState(false);
+  const [reportCardOpen, setReportCardOpen] = useState(false);
   const [generatingInsight, setGeneratingInsight] = useState(false);
 
   const d = useMemo(() => {
@@ -230,25 +236,45 @@ function HomeScreen() {
         )
       ) : (
         <>
-          {/* User profile action strip */}
-          <div className="flex items-center justify-between">
+          {/* User profile & interactive decision action strip */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setProfileOpen(true)}
               className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
             >
               <User className="h-3.5 w-3.5 text-primary" />
-              <span>{d.profile?.full_name || "Profile & Settings"}</span>
+              <span>{d.profile?.full_name || "Profile"}</span>
             </button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setLedgerOpen(true)}
-              className="h-8 gap-1.5 rounded-xl text-xs font-semibold"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-              Ledger & Export
-            </Button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAffordOpen(true)}
+                className="h-8 gap-1 rounded-xl text-xs font-semibold text-primary border-primary/30 bg-primary-soft hover:bg-primary-soft/80"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+                Afford It?
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setReportCardOpen(true)}
+                className="h-8 gap-1 rounded-xl text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-600/40 bg-amber-50 dark:bg-amber-950/20"
+              >
+                <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                Report Card
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setLedgerOpen(true)}
+                className="h-8 gap-1.5 rounded-xl text-xs font-semibold"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                Ledger
+              </Button>
+            </div>
           </div>
 
           {/* AI Financial Insight Card */}
@@ -380,6 +406,12 @@ function HomeScreen() {
           initialData={d.profile}
         />
       )}
+
+      {/* "Can I Afford It?" Advisor Modal */}
+      <CanIAffordItModal open={affordOpen} onOpenChange={setAffordOpen} />
+
+      {/* Monthly Money Report Card Modal */}
+      <MoneyReportCardModal open={reportCardOpen} onOpenChange={setReportCardOpen} />
     </PageShell>
   );
 }

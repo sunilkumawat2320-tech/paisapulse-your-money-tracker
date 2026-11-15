@@ -34,3 +34,6 @@ dist-ssr
 supabase/.temp/
 
 .agents/mcp_config.json
+
+# Local Netlify folder
+.netlify

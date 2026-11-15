@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, RefreshCw, Trash2, CalendarClock, Power } from "lucide-react";
+import {
+  Plus,
+  RefreshCw,
+  Trash2,
+  CalendarClock,
+  Power,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, PageShell, EmptyState } from "@/components/PageShell";
@@ -64,6 +73,30 @@ function getRenewalStatus(dateStr: string) {
   return { label: `Renews ${formattedDate}`, tone: "bg-success-soft text-success" };
 }
 
+function getInactivityInfo(sub: {
+  amount: number;
+  billing_cycle: string;
+  last_used_at?: string | null;
+  created_at: string;
+}) {
+  const now = new Date();
+  const refDateStr = sub.last_used_at || sub.created_at;
+  const refDate = refDateStr ? new Date(refDateStr) : now;
+  const diffDays = Math.max(0, Math.floor((now.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24)));
+  const isUnused = diffDays >= 30;
+
+  const amt = Number(sub.amount);
+  let annualSavings = amt;
+  if (sub.billing_cycle === "monthly") annualSavings = amt * 12;
+  else if (sub.billing_cycle === "quarterly") annualSavings = amt * 4;
+
+  const lastUsedLabel = sub.last_used_at
+    ? new Intl.DateTimeFormat("en-IN", { month: "short", day: "numeric" }).format(new Date(sub.last_used_at))
+    : null;
+
+  return { isUnused, diffDays, annualSavings, lastUsedLabel };
+}
+
 export function SubscriptionsScreen() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -71,6 +104,7 @@ export function SubscriptionsScreen() {
   const [amount, setAmount] = useState("");
   const [billingCycle, setBillingCycle] = useState("monthly");
   const [nextRenewal, setNextRenewal] = useState("");
+  const [lastUsedAt, setLastUsedAt] = useState(new Date().toISOString().slice(0, 10));
 
   const subsQuery = useQuery({
     queryKey: ["subscriptions"],
@@ -94,11 +128,13 @@ export function SubscriptionsScreen() {
       amount,
       billing_cycle,
       next_renewal,
+      last_used_at,
     }: {
       name: string;
       amount: number;
       billing_cycle: string;
       next_renewal: string;
+      last_used_at?: string | null;
     }) => {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) throw new Error("Not authenticated");
@@ -109,6 +145,7 @@ export function SubscriptionsScreen() {
         amount,
         billing_cycle,
         next_renewal,
+        last_used_at: last_used_at || null,
         active: true,
       });
       if (error) throw error;
@@ -142,6 +179,24 @@ export function SubscriptionsScreen() {
     },
   });
 
+  const markUsedMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { error } = await supabase
+        .from("subscriptions")
+        .update({ last_used_at: today })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+      toast.success("Updated last active date to today");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to update last used date");
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("subscriptions").delete().eq("id", id);
@@ -163,6 +218,7 @@ export function SubscriptionsScreen() {
     setAmount("");
     setBillingCycle("monthly");
     setNextRenewal("");
+    setLastUsedAt(new Date().toISOString().slice(0, 10));
   }
 
   function handleAdd(e: React.FormEvent) {
@@ -185,6 +241,7 @@ export function SubscriptionsScreen() {
       amount: parsedAmount,
       billing_cycle: billingCycle,
       next_renewal: nextRenewal,
+      last_used_at: lastUsedAt || null,
     });
   }
 
@@ -200,6 +257,16 @@ export function SubscriptionsScreen() {
   }, 0);
 
   const yearlyCommitment = monthlyCommitment * 12;
+
+  // Check for unused active subscriptions
+  const unusedActiveSubs = activeSubs.filter((s) => {
+    const info = getInactivityInfo(s);
+    return info.isUnused;
+  });
+
+  const potentialUnusedAnnualSavings = unusedActiveSubs.reduce((sum, s) => {
+    return sum + getInactivityInfo(s).annualSavings;
+  }, 0);
 
   return (
     <PageShell title="Subscriptions" subtitle="Recurring payments & renewals">
@@ -234,6 +301,30 @@ export function SubscriptionsScreen() {
         </div>
       </Card>
 
+      {/* 30-Day Inactivity Warning Summary Banner */}
+      {unusedActiveSubs.length > 0 && (
+        <Card className="border-warning/40 bg-warning/5">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-warning/15 text-warning shrink-0 mt-0.5">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div className="space-y-1 flex-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-warning">Subscription Inactivity Alert</p>
+                <span className="text-[10px] rounded-full bg-warning/20 px-2 py-0.5 font-bold text-warning">
+                  Save up to {formatINR(potentialUnusedAnnualSavings)}/yr
+                </span>
+              </div>
+              <p className="text-xs text-foreground/90">
+                You have <span className="font-semibold text-foreground">{unusedActiveSubs.length}</span>{" "}
+                {unusedActiveSubs.length === 1 ? "subscription" : "subscriptions"} unused for over 30 days.
+                Review below to cancel or mark active.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {subsQuery.isPending ? (
         <div className="space-y-3">
           <Skeleton className="h-20 w-full rounded-2xl" />
@@ -250,16 +341,22 @@ export function SubscriptionsScreen() {
         <div className="space-y-3">
           {items.map((sub) => {
             const status = getRenewalStatus(sub.next_renewal);
+            const inactivity = getInactivityInfo(sub);
 
             return (
-              <Card key={sub.id} className={!sub.active ? "opacity-60 bg-muted/40" : ""}>
+              <Card
+                key={sub.id}
+                className={`${!sub.active ? "opacity-60 bg-muted/40" : ""} ${
+                  sub.active && inactivity.isUnused ? "border-warning/40 ring-1 ring-warning/20" : ""
+                }`}
+              >
                 <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
                     <RefreshCw className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{sub.name}</p>
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span
                         className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                           sub.active ? status.tone : "bg-muted text-muted-foreground"
@@ -270,6 +367,11 @@ export function SubscriptionsScreen() {
                       <span className="text-[11px] text-muted-foreground capitalize">
                         {sub.billing_cycle}
                       </span>
+                      {inactivity.lastUsedLabel && !inactivity.isUnused && (
+                        <span className="text-[10px] text-muted-foreground/80">
+                          · Active {inactivity.lastUsedLabel}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
@@ -279,6 +381,49 @@ export function SubscriptionsScreen() {
                     <p className="text-[10px] text-muted-foreground">/{sub.billing_cycle}</p>
                   </div>
                 </div>
+
+                {/* 30-Day Inactivity Banner & Decision Badge */}
+                {sub.active && inactivity.isUnused && (
+                  <div className="mt-3 rounded-xl border border-warning/40 bg-warning/10 p-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-warning">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>Unused for {inactivity.diffDays}+ days · Cancel or keep?</span>
+                      </div>
+                      <span className="shrink-0 rounded-md bg-warning/25 px-1.5 py-0.5 text-[10px] font-bold text-warning">
+                        Save {formatINR(inactivity.annualSavings)}/yr
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {inactivity.lastUsedLabel
+                        ? `Last activity detected on ${inactivity.lastUsedLabel}.`
+                        : "No recent activity recorded for 30+ days."}{" "}
+                      If you're not using this, pausing it frees up recurring cash.
+                    </p>
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 rounded-lg text-xs border-warning/30 bg-background hover:bg-warning/10"
+                        onClick={() => markUsedMutation.mutate(sub.id)}
+                        disabled={markUsedMutation.isPending}
+                      >
+                        <CheckCircle2 className="mr-1 h-3.5 w-3.5 text-success" /> Mark used today
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 rounded-lg text-xs"
+                        onClick={() => toggleActiveMutation.mutate({ id: sub.id, active: false })}
+                        disabled={toggleActiveMutation.isPending}
+                      >
+                        Pause & Save
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-2 text-xs">
                   <Button
@@ -386,6 +531,19 @@ export function SubscriptionsScreen() {
                   onChange={(e) => setNextRenewal(e.target.value)}
                   required
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="last-used">Last Used / Active Date</Label>
+                <Input
+                  id="last-used"
+                  type="date"
+                  value={lastUsedAt}
+                  onChange={(e) => setLastUsedAt(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  PaisaPulse flags services unused for 30+ days to prevent wasted money.
+                </p>
               </div>
             </div>
 
