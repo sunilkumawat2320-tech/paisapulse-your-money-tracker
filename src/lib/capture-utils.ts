@@ -119,21 +119,92 @@ const MERCHANT_CATEGORY_MAP: Record<string, string> = {
  * - "Auto 120 to metro station"
  * - "Salary Rs 75,000 credited"
  */
-export function parseIndianSmsOrText(rawText: string): CaptureRecord[] {
-  const lines = rawText
-    .split(/\r?\n/)
-    .map((l) => l.trim())
+function parseDateFromIndianSms(text: string): string {
+  const MONTHS: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+
+  const textLower = text.toLowerCase();
+  const dmyMatch = textLower.match(/\b(\d{1,2})[-/]([a-z]{3}|\d{1,2})(?:[-/](\d{2,4}))?\b/i);
+  if (dmyMatch && dmyMatch[1] && dmyMatch[2]) {
+    const day = parseInt(dmyMatch[1], 10);
+    let month = -1;
+    if (isNaN(Number(dmyMatch[2]))) {
+      month = MONTHS[dmyMatch[2].slice(0, 3)] ?? -1;
+    } else {
+      month = parseInt(dmyMatch[2], 10) - 1;
+    }
+
+    if (day >= 1 && day <= 31 && month >= 0 && month <= 11) {
+      const now = new Date();
+      let year = now.getFullYear();
+      if (dmyMatch[3]) {
+        const parsedYear = parseInt(dmyMatch[3], 10);
+        year = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
+      }
+      const parsedDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toISOString();
+      }
+    }
+  }
+
+  return new Date().toISOString();
+}
+
+function splitIntoSmsChunks(rawText: string): string[] {
+  // Split by double newlines (paragraphs/separate SMS messages)
+  const paragraphs = rawText
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => p.trim())
     .filter(Boolean);
 
+  const chunks: string[] = [];
+
+  for (const para of paragraphs) {
+    // If a single paragraph contains multiple SMS headers, split them
+    const delimiterPattern = /(?=(?:(?:Dear\s+Customer|Alert\s*:|A\/c\s*[\*x\d]+|Txn\s*ID|Rs\.?\s*[\d,]+(?:\.\d{1,2})?\s*(?:debited|credited)|Paid\s+Rs|Sent\s+Rs))\b)/i;
+    const splitMessages = para.split(delimiterPattern).map((m) => m.trim()).filter(Boolean);
+    if (splitMessages.length > 1) {
+      chunks.push(...splitMessages);
+    } else {
+      chunks.push(para);
+    }
+  }
+
+  // If there's only 1 chunk with multiple discrete lines having amounts, split by line
+  if (chunks.length === 1 && paragraphs.length === 1) {
+    const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const amountLines = lines.filter((l) =>
+      /(?:rs\.?|inr|₹)\s*[\d,]+|[\d,]+\s*(?:rs\.?|inr|₹|rupees)|\bdebited\b|\bcredited\b/i.test(l)
+    );
+    if (amountLines.length > 1) {
+      return lines;
+    }
+  }
+
+  return chunks.length ? chunks : [rawText.trim()];
+}
+
+export function parseIndianSmsOrText(rawText: string): CaptureRecord[] {
+  const chunks = splitIntoSmsChunks(rawText);
   const results: CaptureRecord[] = [];
 
-  for (const line of lines) {
+  for (const chunk of chunks) {
+    // Strip out available balance mentions first (e.g. "Bal Rs. 14,250" or "Avail Bal: Rs 89,000")
+    // so account balance numbers don't get mistakenly parsed as expense amounts
+    const textWithoutBalance = chunk.replace(
+      /(?:avail(?:able)?\s+)?bal(?:ance)?(?:\s+is|\s*:)?\s*(?:rs\.?|inr|₹)?\s*[\d,]+(?:\.\d{1,2})?/gi,
+      ""
+    );
+
     // 1. Amount Extraction (handles ₹, Rs, Rs., INR, numbers with commas, e.g. Rs. 1,250.50 or 450 rupees)
     const amountMatch =
-      line.match(/(?:(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?))/i) ||
-      line.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:rs\.?|inr|₹|rupees)/i) ||
-      line.match(/\b(?:debited\s+by|paid|spent|sent)\s+([\d,]+(?:\.\d{1,2})?)/i) ||
-      line.match(/\b([\d,]+(?:\.\d{1,2})?)\b/);
+      textWithoutBalance.match(/(?:(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?))/i) ||
+      textWithoutBalance.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:rs\.?|inr|₹|rupees)/i) ||
+      textWithoutBalance.match(/\b(?:debited\s+by|paid|spent|sent)\s+([\d,]+(?:\.\d{1,2})?)/i) ||
+      textWithoutBalance.match(/\b([\d,]+(?:\.\d{1,2})?)\b/);
 
     if (!amountMatch || !amountMatch[1]) continue;
 
@@ -142,31 +213,31 @@ export function parseIndianSmsOrText(rawText: string): CaptureRecord[] {
 
     // 2. Type detection: Income vs Expense
     const isIncome =
-      /\b(?:credited|received|salary|refund|cashback|deposited)\b/i.test(line) &&
-      !/\b(?:debited|paid|spent|sent|transferred\s+to)\b/i.test(line);
+      /\b(?:credited|received|salary|refund|cashback|deposited)\b/i.test(chunk) &&
+      !/\b(?:debited|paid|spent|sent|transferred\s+to)\b/i.test(chunk);
 
     // 3. Payment Mode detection
     let paymentMode = "UPI";
-    if (/\b(?:credit\s*card|cc)\b/i.test(line)) paymentMode = "Credit Card";
-    else if (/\b(?:debit\s*card|dc)\b/i.test(line)) paymentMode = "Debit Card";
-    else if (/\bnet\s*banking\b/i.test(line)) paymentMode = "Net Banking";
-    else if (/\bcash\b/i.test(line)) paymentMode = "Cash";
-    else if (/\bgpay|google\s*pay\b/i.test(line)) paymentMode = "Google Pay";
-    else if (/\bphonepe\b/i.test(line)) paymentMode = "PhonePe";
-    else if (/\bpaytm\b/i.test(line)) paymentMode = "Paytm";
+    if (/\b(?:credit\s*card|cc)\b/i.test(chunk)) paymentMode = "Credit Card";
+    else if (/\b(?:debit\s*card|dc)\b/i.test(chunk)) paymentMode = "Debit Card";
+    else if (/\bnet\s*banking\b/i.test(chunk)) paymentMode = "Net Banking";
+    else if (/\bcash\b/i.test(chunk)) paymentMode = "Cash";
+    else if (/\bgpay|google\s*pay\b/i.test(chunk)) paymentMode = "Google Pay";
+    else if (/\bphonepe\b/i.test(chunk)) paymentMode = "PhonePe";
+    else if (/\bpaytm\b/i.test(chunk)) paymentMode = "Paytm";
 
     // 4. Merchant detection
     let merchant = "";
     const merchantMatch =
-      line.match(/(?:to|at|vpa|info|towards)\s+([A-Za-z0-9&.\-_ ]+?)(?:\s+(?:on|via|using|ref|a\/c|bal)|$)/i) ||
-      line.match(/paid\s+to\s+([A-Za-z0-9&.\-_ ]+)/i);
+      chunk.match(/(?:to|at|vpa|info|towards)\s+([A-Za-z0-9&.\-_ ]+?)(?:\s+(?:on|via|using|ref|a\/c|bal)|$)/i) ||
+      chunk.match(/paid\s+to\s+([A-Za-z0-9&.\-_ ]+)/i);
 
     if (merchantMatch && merchantMatch[1]) {
       merchant = merchantMatch[1].trim().replace(/[.,;]+$/, "");
     } else {
       // Look for known merchants in text
       for (const m of Object.keys(MERCHANT_CATEGORY_MAP)) {
-        if (new RegExp(`\\b${m}\\b`, "i").test(line)) {
+        if (new RegExp(`\\b${m}\\b`, "i").test(chunk)) {
           merchant = m.charAt(0).toUpperCase() + m.slice(1);
           break;
         }
@@ -175,9 +246,9 @@ export function parseIndianSmsOrText(rawText: string): CaptureRecord[] {
 
     // 5. Category classification
     let category = isIncome ? "Salary" : "Other";
-    const lowerLine = line.toLowerCase();
+    const lowerChunk = chunk.toLowerCase();
     for (const [key, cat] of Object.entries(MERCHANT_CATEGORY_MAP)) {
-      if (lowerLine.includes(key)) {
+      if (lowerChunk.includes(key)) {
         category = isIncome ? (cat === "Salary" ? "Salary" : "Refund") : cat;
         break;
       }
@@ -185,21 +256,25 @@ export function parseIndianSmsOrText(rawText: string): CaptureRecord[] {
 
     // Default food & dining if typical food words are present
     if (category === "Other") {
-      if (/\b(?:lunch|dinner|breakfast|snack|chai|coffee|food|pizza|burger|meal)\b/i.test(line)) {
+      if (/\b(?:lunch|dinner|breakfast|snack|chai|coffee|food|pizza|burger|meal)\b/i.test(chunk)) {
         category = "Food & dining";
-      } else if (/\b(?:cab|taxi|train|bus|fuel|petrol|toll)\b/i.test(line)) {
+      } else if (/\b(?:cab|taxi|train|bus|fuel|petrol|toll)\b/i.test(chunk)) {
         category = "Travel";
-      } else if (/\b(?:groceries|fruits|sabzi|mart|market)\b/i.test(line)) {
+      } else if (/\b(?:groceries|fruits|sabzi|mart|market)\b/i.test(chunk)) {
         category = "Groceries";
       }
     }
 
-    // 6. Note cleanup
+    // 6. Occurred Date parsing
+    const occurredAt = parseDateFromIndianSms(chunk);
+
+    // 7. Clean concise note
+    const singleLineChunk = chunk.replace(/\s+/g, " ").trim();
     const note = merchant
-      ? `${merchant} · ${line.slice(0, 60)}`
-      : line.length > 50
-        ? line.slice(0, 50) + "…"
-        : line;
+      ? `${merchant} · ${singleLineChunk.slice(0, 60)}`
+      : singleLineChunk.length > 50
+        ? singleLineChunk.slice(0, 50) + "…"
+        : singleLineChunk;
 
     results.push({
       amount: parsedAmount,
@@ -208,7 +283,7 @@ export function parseIndianSmsOrText(rawText: string): CaptureRecord[] {
       merchant: merchant || (isIncome ? "Deposit" : "Payment"),
       paymentMode,
       note,
-      occurredAt: new Date().toISOString(),
+      occurredAt,
     });
   }
 

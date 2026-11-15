@@ -22,6 +22,9 @@ import {
   Mic,
   MicOff,
   Volume2,
+  ExternalLink,
+  ShieldCheck,
+  ClipboardPaste,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -384,6 +387,49 @@ export function CaptureScreen() {
     }
   }
 
+  // 1-Tap Clipboard Batch Sync: Reads multiple SMSes from clipboard & auto-parses entire day
+  async function handleClipboardBatchSync() {
+    setIsParsing(true);
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText || !clipboardText.trim()) {
+        toast.error("Clipboard is empty! Copy your bank SMSes from Messages first, then tap here.");
+        return;
+      }
+
+      setRawTextInput(clipboardText);
+      const geminiKey = getStoredGeminiKey();
+
+      if (geminiKey) {
+        toast.info("Extracting daily transactions with Gemini AI…");
+        try {
+          const prompt = `Extract all personal finance transactions from this batch of SMS messages or copied text. For each transaction return amount (INR positive number), category, merchant name, type ('expense' or 'income'), paymentMode, occurredAt (ISO-8601 string, infer from SMS date or use current date), and concise note.\n\nText:\n${clipboardText}`;
+          const res = await parseWithGemini(prompt, undefined, geminiKey);
+          if (res.entries && res.entries.length) {
+            setParsedEntries(res.entries);
+            toast.success(`AI synced ${res.entries.length} transaction(s) from your clipboard!`);
+            return;
+          }
+        } catch {
+          // fallback to local parser
+        }
+      }
+
+      // Fast local Indian regex parser
+      const localParsed = parseIndianSmsOrText(clipboardText);
+      if (localParsed.length) {
+        setParsedEntries(localParsed);
+        toast.success(`Extracted ${localParsed.length} transaction(s) from clipboard!`);
+      } else {
+        toast.error("Couldn't find transaction amounts in copied text. Make sure you copied bank SMSes.");
+      }
+    } catch {
+      toast.error("Please grant clipboard permission or paste manually into the box below.");
+    } finally {
+      setIsParsing(false);
+    }
+  }
+
   // Handle receipt image upload
   async function handleReceiptUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -488,6 +534,20 @@ export function CaptureScreen() {
       toast.error(`Key verification failed: ${(err as Error).message}`);
     } finally {
       setIsTestingKey(false);
+    }
+  }
+
+  async function handlePasteKey() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        setApiKeyInput(text.trim());
+        toast.success("Key pasted from clipboard!");
+      } else {
+        toast.error("Clipboard is empty");
+      }
+    } catch {
+      toast.error("Couldn't read clipboard automatically. Please press Ctrl+V to paste.");
     }
   }
 
@@ -734,6 +794,34 @@ export function CaptureScreen() {
             </p>
           </div>
 
+          {/* 1-Tap Clipboard Batch Sync Hero */}
+          <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft/50 via-primary-soft/20 to-transparent p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-sm text-foreground">
+                  <ClipboardPaste className="h-4 w-4 text-primary" />
+                  <span>1-Tap Daily SMS Batch Sync</span>
+                  <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    Instant
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Select and copy your bank SMSes from Messages or WhatsApp. Tap to extract all expenses at once.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleClipboardBatchSync}
+                disabled={isParsing}
+                className="rounded-xl px-4 py-2.5 h-auto text-xs font-semibold shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all"
+              >
+                <ClipboardPaste className="mr-1.5 h-4 w-4" />
+                {isParsing ? "Scanning Clipboard…" : "Sync from Clipboard"}
+              </Button>
+            </div>
+          </div>
+
           {/* Voice Input Toolbar */}
           <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/30 p-2.5">
             <div className="flex items-center gap-2">
@@ -823,9 +911,31 @@ export function CaptureScreen() {
           {/* Parsed Preview Cards */}
           {parsedEntries.length > 0 && (
             <div className="space-y-3 border-t border-border pt-4">
+              {/* Batch Summary Header */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-primary-soft/40 border border-primary/20 p-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-bold text-foreground">
+                    {parsedEntries.length} Transaction{parsedEntries.length > 1 ? "s" : ""} Found
+                  </span>
+                  {parsedEntries.some((e) => e.type === "expense") && (
+                    <span className="text-danger font-semibold">
+                      Total Expense: -{formatINR(parsedEntries.filter((e) => e.type === "expense").reduce((s, e) => s + e.amount, 0))}
+                    </span>
+                  )}
+                  {parsedEntries.some((e) => e.type === "income") && (
+                    <span className="text-success font-semibold">
+                      Total Income: +{formatINR(parsedEntries.filter((e) => e.type === "income").reduce((s, e) => s + e.amount, 0))}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  Duplicates skipped on save
+                </span>
+              </div>
+
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-foreground">
-                  Detected Transactions ({parsedEntries.length})
+                  Review & Confirm Entries
                 </p>
                 <Button
                   size="sm"
@@ -840,7 +950,7 @@ export function CaptureScreen() {
                   className="rounded-xl h-8 text-xs font-semibold"
                 >
                   <Check className="mr-1.5 h-3.5 w-3.5" />
-                  {batchInsertMutation.isPending ? "Saving…" : "Confirm & Save All"}
+                  {batchInsertMutation.isPending ? "Saving…" : `Confirm & Save All (${parsedEntries.length})`}
                 </Button>
               </div>
 
@@ -848,14 +958,22 @@ export function CaptureScreen() {
                 {parsedEntries.map((entry, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between rounded-xl border border-border bg-card p-3 text-sm"
+                    className="flex items-center justify-between rounded-xl border border-border bg-card p-3 text-sm hover:border-primary/30 transition-colors"
                   >
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {entry.merchant || entry.category}
-                      </p>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-foreground">
+                          {entry.merchant || entry.category}
+                        </p>
+                        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {entry.category}
+                        </span>
+                        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {entry.paymentMode}
+                        </span>
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        {entry.category} · {entry.paymentMode} · {entry.note}
+                        {entry.note}
                       </p>
                     </div>
                     <div className="text-right">
@@ -1053,42 +1171,146 @@ export function CaptureScreen() {
 
       {/* Google AI Studio Configuration Dialog */}
       <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" /> Google AI Studio API Key
-            </DialogTitle>
-            <DialogDescription>
-              Connect your Gemini key to unlock multimodal receipt OCR, voice transcription, and AI-powered transaction categorization.
+        <DialogContent className="max-w-lg rounded-2xl p-6">
+          <DialogHeader className="space-y-1.5">
+            <div className="flex items-center gap-2 text-primary">
+              <Sparkles className="h-5 w-5" />
+              <DialogTitle className="text-lg font-bold">
+                Connect Free Gemini AI
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Unlocks automated receipt photo OCR, Indian voice expense transcription, and smart SMS transaction parsing.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            {/* Key Prefix Guidance */}
-            <div className="rounded-xl border border-primary/20 bg-primary-soft/50 p-3 text-xs text-primary leading-relaxed">
-              <p className="font-semibold flex items-center gap-1.5 mb-1 text-foreground">
-                <HelpCircle className="h-4 w-4 text-primary" /> Key Prefix Explanation
-              </p>
-              Standard keys generated in Google AI Studio typically begin with <code className="font-mono font-semibold">AIzaSy...</code>. However, keys generated via Google Cloud Console or service accounts may start with other prefixes (e.g. <code className="font-mono">AIza...</code> or project credentials). Any key from Google Cloud with the <strong>Generative Language API</strong> enabled is accepted.
+          <div className="space-y-4 py-1">
+            {/* Value Proposition Ribbon */}
+            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-3 py-2 text-xs font-medium text-primary">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                100% Free Forever
+              </span>
+              <span className="text-muted-foreground/60">•</span>
+              <span>No Credit Card Needed</span>
+              <span className="text-muted-foreground/60">•</span>
+              <span>Setup takes ~30 seconds</span>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="gemini-key">API Key</Label>
-              <Input
-                id="gemini-key"
-                type="password"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
-                className="font-mono text-xs"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Stored safely in your local browser storage. It is never logged or shared.
-              </p>
+            {/* 3-Step Quick Guide Card */}
+            <div className="rounded-xl border border-border/80 bg-muted/40 p-3.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <HelpCircle className="h-3.5 w-3.5 text-primary" />
+                  Quick Guide: How to get your free key
+                </p>
+                <a
+                  href="https://aistudio.google.com/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                >
+                  Open Google AI Studio
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+
+              <ol className="space-y-2 text-xs text-muted-foreground">
+                <li className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary">
+                    1
+                  </span>
+                  <div className="leading-tight">
+                    <strong className="text-foreground">Open Google AI Studio:</strong>{" "}
+                    Click the button below and sign in with any standard Google / Gmail account.
+                  </div>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary">
+                    2
+                  </span>
+                  <div className="leading-tight">
+                    <strong className="text-foreground">Click "Create API key":</strong>{" "}
+                    Hit the blue button on Google's page. (Free tier includes 1,500 requests/day).
+                  </div>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary">
+                    3
+                  </span>
+                  <div className="leading-tight">
+                    <strong className="text-foreground">Copy & Paste below:</strong>{" "}
+                    Copy the key (starts with <code className="font-mono text-[11px] bg-background px-1 py-0.5 rounded border border-border text-foreground">AIzaSy...</code>) and paste it below.
+                  </div>
+                </li>
+              </ol>
+
+              {/* Big CTA Button */}
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 text-xs font-semibold shadow-sm transition-colors"
+              >
+                <span>Step 1: Get Free Key on Google AI Studio</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
             </div>
+
+            {/* API Key Input Field */}
+            <div className="space-y-1.5">
+              <Label htmlFor="gemini-key" className="text-xs font-semibold text-foreground flex items-center justify-between">
+                <span>Step 2: Paste your API Key</span>
+                {apiKeyInput && (
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    {apiKeyInput.startsWith("AIzaSy") ? "✓ Valid Google AI Studio format" : ""}
+                  </span>
+                )}
+              </Label>
+              <div className="relative flex items-center">
+                <Input
+                  id="gemini-key"
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Paste your key here (e.g. AIzaSy...)"
+                  className="font-mono text-xs pr-20 rounded-xl"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePasteKey}
+                  className="absolute right-1 h-7 px-2.5 text-[11px] font-semibold text-primary hover:bg-primary/10 rounded-lg"
+                  title="Paste from clipboard"
+                >
+                  <ClipboardPaste className="h-3.5 w-3.5 mr-1" />
+                  Paste
+                </Button>
+              </div>
+            </div>
+
+            {/* Privacy Guarantee */}
+            <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-[11px] text-muted-foreground leading-tight">
+              <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                <strong className="text-foreground">Private & Stored on Device:</strong> Your API key is stored only inside your browser's private local storage. It is never logged or sent to PaisaPulse servers.
+              </span>
+            </div>
+
+            {/* Advanced Prefix Help */}
+            <details className="text-[11px] text-muted-foreground group">
+              <summary className="cursor-pointer font-medium hover:text-foreground list-none flex items-center gap-1.5 select-none">
+                <span className="text-primary text-xs">▸</span>
+                <span>Using Google Cloud Console or service accounts?</span>
+              </summary>
+              <div className="mt-2 pl-3 border-l-2 border-border/80 text-muted-foreground space-y-1">
+                Standard keys generated in Google AI Studio start with <code className="font-mono font-semibold text-foreground">AIzaSy...</code>. Any key from Google Cloud with the <strong>Generative Language API</strong> enabled is accepted.
+              </div>
+            </details>
           </div>
 
-          <DialogFooter className="flex gap-2">
+          <DialogFooter className="flex gap-2 pt-2">
             {apiKeyInput && (
               <Button
                 type="button"
@@ -1107,9 +1329,9 @@ export function CaptureScreen() {
               type="button"
               onClick={testGeminiKey}
               disabled={isTestingKey || !apiKeyInput.trim()}
-              className="rounded-xl flex-1"
+              className="rounded-xl flex-1 text-xs font-semibold"
             >
-              {isTestingKey ? "Testing…" : "Test & Save Key"}
+              {isTestingKey ? "Testing Connection…" : "Test & Save Key"}
             </Button>
           </DialogFooter>
         </DialogContent>
