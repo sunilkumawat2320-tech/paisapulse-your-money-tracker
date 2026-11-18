@@ -13,17 +13,20 @@ export function BottomNav() {
   const right = tabs.slice(2);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-[99999] border-t border-border bg-card/95 backdrop-blur pointer-events-auto"
+      style={{ zIndex: 99999 }}
+    >
       <div className="pb-safe mx-auto grid max-w-md grid-cols-5 items-end px-2 pt-2">
         {left.map((tab) => (
           <NavItem key={tab.to} {...tab} />
         ))}
 
-        <div className="flex justify-center">
+        <div className="flex justify-center relative z-20">
           <Link
             to="/capture"
             aria-label="Capture an expense"
-            className="-mt-8 flex h-16 w-16 flex-col items-center justify-center rounded-full bg-primary text-primary-foreground shadow-float transition-transform active:scale-95"
+            className="-mt-8 flex h-16 w-16 flex-col items-center justify-center rounded-full bg-primary text-primary-foreground shadow-float transition-transform active:scale-95 pointer-events-auto"
           >
             <Plus className="h-7 w-7" strokeWidth={2.5} />
             <span className="text-[10px] font-semibold">Add</span>
@@ -53,7 +56,7 @@ function NavItem({
     <Link
       to={to}
       activeOptions={{ exact }}
-      className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-muted-foreground transition-colors"
+      className="relative z-10 flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-muted-foreground transition-colors pointer-events-auto"
       activeProps={{ className: "text-primary" }}
     >
       <Icon className="h-5 w-5" />

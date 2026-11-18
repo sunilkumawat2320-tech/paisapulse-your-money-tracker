@@ -175,3 +175,25 @@
 @utility pt-safe {
   padding-top: env(safe-area-inset-top);
 }
+
+/* Suppress Netlify Drawer / floating feedback badges that obstruct mobile bottom navigation */
+#netlify-drawer,
+netlify-drawer,
+[data-netlify-drawer],
+iframe#netlify-drawer,
+iframe[title*="Netlify" i],
+div[class*="netlify-drawer" i],
+#netlify-badge,
+.netlify-badge {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -99999 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -99999px !important;
+  bottom: -99999px !important;
+}
+
