@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { User, LogOut, Settings, FileSpreadsheet, CreditCard, ChevronDown } from "lucide-react";
+import {
+  User,
+  LogOut,
+  Settings,
+  FileSpreadsheet,
+  CreditCard,
+  ChevronDown,
+  BookOpen,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -16,6 +25,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { ProfileSettingsDialog } from "@/components/ProfileSettingsDialog";
 import { TransactionLedgerModal } from "@/components/TransactionLedgerModal";
+import { UserManualModal } from "@/components/UserManualModal";
+import { SafetyGuidelinesModal } from "@/components/SafetyGuidelinesModal";
 import { formatINR } from "@/lib/format";
 
 export function UserProfileMenu() {
@@ -24,6 +35,8 @@ export function UserProfileMenu() {
 
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [safetyOpen, setSafetyOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["user_profile_header"],
@@ -84,7 +97,7 @@ export function UserProfileMenu() {
           </button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-float">
+        <DropdownMenuContent align="end" className="w-60 rounded-2xl p-1.5 shadow-float">
           <DropdownMenuLabel className="p-2">
             <p className="text-sm font-semibold text-foreground truncate">{fullName}</p>
             <p className="text-xs text-muted-foreground truncate font-normal">
@@ -119,6 +132,24 @@ export function UserProfileMenu() {
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
+            onClick={() => setManualOpen(true)}
+            className="cursor-pointer gap-2 rounded-xl py-2 text-xs font-medium"
+          >
+            <BookOpen className="h-4 w-4 text-primary" />
+            <span>User Manual</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => setSafetyOpen(true)}
+            className="cursor-pointer gap-2 rounded-xl py-2 text-xs font-medium"
+          >
+            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Safety Guidelines</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
             onClick={handleSignOut}
             className="cursor-pointer gap-2 rounded-xl py-2 text-xs font-medium text-danger hover:text-danger focus:text-danger focus:bg-danger-soft"
           >
@@ -136,6 +167,10 @@ export function UserProfileMenu() {
       />
 
       <TransactionLedgerModal open={ledgerOpen} onOpenChange={setLedgerOpen} />
+
+      <UserManualModal open={manualOpen} onOpenChange={setManualOpen} />
+
+      <SafetyGuidelinesModal open={safetyOpen} onOpenChange={setSafetyOpen} />
     </>
   );
 }

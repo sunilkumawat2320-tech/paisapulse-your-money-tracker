@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { User, LogOut, Check, Sparkles } from "lucide-react";
+import { User, LogOut, Check, Sparkles, BookOpen, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
+import { UserManualModal } from "@/components/UserManualModal";
+import { SafetyGuidelinesModal } from "@/components/SafetyGuidelinesModal";
 
 export function ProfileSettingsDialog({
   open,
@@ -43,6 +45,8 @@ export function ProfileSettingsDialog({
     (initialData?.whatsapp_number || "").replace(/^\+91/, "")
   );
   const [saving, setSaving] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [safetyOpen, setSafetyOpen] = useState(false);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -78,7 +82,8 @@ export function ProfileSettingsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md rounded-2xl">
         <form onSubmit={handleSave}>
           <DialogHeader>
@@ -148,6 +153,33 @@ export function ProfileSettingsDialog({
                 />
               </div>
             </div>
+
+            {/* Quick Manual & Safety Help Section */}
+            <div className="pt-3 border-t border-border/70 space-y-2">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Help & Security
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setManualOpen(true)}
+                  className="rounded-xl h-10 text-xs gap-1.5 justify-start px-3 hover:border-primary/40"
+                >
+                  <BookOpen className="h-4 w-4 text-primary shrink-0" />
+                  <span className="truncate font-medium">User Manual</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSafetyOpen(true)}
+                  className="rounded-xl h-10 text-xs gap-1.5 justify-start px-3 hover:border-emerald-500/40"
+                >
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="truncate font-medium">Safety Guidelines</span>
+                </Button>
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
@@ -177,5 +209,10 @@ export function ProfileSettingsDialog({
         </form>
       </DialogContent>
     </Dialog>
+
+    <UserManualModal open={manualOpen} onOpenChange={setManualOpen} />
+
+    <SafetyGuidelinesModal open={safetyOpen} onOpenChange={setSafetyOpen} />
+    </>
   );
 }
