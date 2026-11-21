@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ThemeToggle } from "./ThemeToggle";
+import { UserProfileMenu } from "./UserProfileMenu";
 
 export function PageShell({
   title,
@@ -19,7 +20,10 @@ export function PageShell({
             <p className="mt-0.5 truncate text-sm text-muted-foreground">{subtitle}</p>
           ) : null}
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <UserProfileMenu />
+        </div>
       </header>
       <main className="space-y-4">{children}</main>
     </div>
